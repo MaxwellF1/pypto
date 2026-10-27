@@ -544,8 +544,8 @@ class TestGraphScopeParsing:
 def test_graph_scope_write_only_capture_retains_caller_storage():
     """A write-only captured buffer still exists before Graph replay.
 
-    Its InCore callee may declare Out, but the Graph boundary must retain the
-    caller's address just like an explicitly declared InOut Graph parameter.
+    Keep the write-only signature. Call-site direction inference chooses
+    OutputExisting or InOut without changing the Graph's parameter contract.
     """
 
     @pl.program
@@ -573,7 +573,7 @@ def test_graph_scope_write_only_capture_retains_caller_storage():
     outlined = passes.outline_graph_scopes()(passes.convert_to_ssa()(Scope))
     graph = _graph_funcs(outlined)[0]
     directions = {p.name_hint: d for p, d in zip(graph.params, graph.param_directions, strict=True)}
-    assert [d for name, d in directions.items() if name.startswith("out")] == [ir.ParamDirection.InOut]
+    assert [d for name, d in directions.items() if name.startswith("out")] == [ir.ParamDirection.Out]
     assert [d for name, d in directions.items() if name.startswith("a")] == [ir.ParamDirection.In]
 
     @pl.program
@@ -592,7 +592,7 @@ def test_graph_scope_write_only_capture_retains_caller_storage():
         def layer(
             self,
             a: pl.Tensor[[16, 128], pl.FP32],
-            out: pl.InOut[pl.Tensor[[16, 128], pl.FP32]],
+            out: pl.Out[pl.Tensor[[16, 128], pl.FP32]],
         ) -> pl.Tensor[[16, 128], pl.FP32]:
             result = self.copy(a, out)
             return result
@@ -625,8 +625,8 @@ def test_graph_scope_write_only_capture_retains_caller_storage():
 def test_graph_scope_captures_caller_allocated_write_only_buffer():
     """Allocation before the Graph must remain owned by the caller.
 
-    Its InCore callee may declare Out, but the Graph boundary must retain the
-    caller's address just like an explicitly declared InOut Graph parameter.
+    Keep the write-only signature. Call-site direction inference chooses
+    OutputExisting or InOut without changing the Graph's parameter contract.
     """
 
     @pl.program
@@ -654,7 +654,7 @@ def test_graph_scope_captures_caller_allocated_write_only_buffer():
     outlined = passes.outline_graph_scopes()(passes.convert_to_ssa()(Scope))
     graph = _graph_funcs(outlined)[0]
     directions = {p.name_hint: d for p, d in zip(graph.params, graph.param_directions, strict=True)}
-    assert [d for name, d in directions.items() if name.startswith("out")] == [ir.ParamDirection.InOut]
+    assert [d for name, d in directions.items() if name.startswith("out")] == [ir.ParamDirection.Out]
     assert [d for name, d in directions.items() if name.startswith("a")] == [ir.ParamDirection.In]
 
 

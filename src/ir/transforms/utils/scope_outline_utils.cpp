@@ -1797,13 +1797,7 @@ StmtPtr ScopeOutliner::OutlineScope(const ScopeStmtPtr& op,
     const auto& input_var = input_vars[i];
     auto param_var = std::make_shared<Var>(input_var->name_hint_, input_var->GetType(), op->span_);
     input_params.push_back(param_var);
-    auto direction = inferred_directions[i];
-    // Captures already name caller-owned storage. A write-only Graph capture
-    // must bind that address, while Out denotes runtime-allocated Graph storage.
-    if (outlined_func_type_ == FunctionType::Graph && direction == ParamDirection::Out) {
-      direction = ParamDirection::InOut;
-    }
-    input_param_directions.push_back(direction);
+    input_param_directions.push_back(inferred_directions[i]);
     // input_var.get() is the body pointer (var_objects_ is identity), so the
     // substitution reaches the actual use-site in the scope body.
     var_substitution_map[input_var.get()] = param_var;
