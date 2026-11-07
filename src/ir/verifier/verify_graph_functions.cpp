@@ -241,6 +241,8 @@ void VerifySignature(const FunctionPtr& func, std::vector<Diagnostic>& diagnosti
                              "Graph function '" + func->name_ + "' " + message, span);
   };
 
+  // Materialized communication contexts use uint64_t scalar slots. Preserve
+  // their argument origin so replay refreshes the device context pointer.
   size_t tensor_params = 0;
   size_t scalar_params = 0;
   // `param_directions_` may be shorter than `params_` at some points in the
@@ -249,7 +251,7 @@ void VerifySignature(const FunctionPtr& func, std::vector<Diagnostic>& diagnosti
   for (size_t i = 0; i < func->params_.size(); ++i) {
     const auto& param = func->params_[i];
     const auto dir = i < func->param_directions_.size() ? func->param_directions_[i] : ParamDirection::In;
-    if (As<ScalarType>(param->GetType()) != nullptr) {
+    if (As<ScalarType>(param->GetType()) || As<CommCtxType>(param->GetType())) {
       if (dir != ParamDirection::In) {
         report("declares scalar parameter '" + param->name_hint_ +
                    "' as an output. A boundary scalar is passed by value and replayed from the call "
@@ -326,7 +328,7 @@ class GraphBodyChecker : public IRVisitor {
         invariant_(func_),
         topology_invariant_(func_, fixed_scalars) {
     for (const auto& param : func_->params_) {
-      if (As<ScalarType>(param->GetType()) != nullptr) {
+      if (As<ScalarType>(param->GetType()) || As<CommCtxType>(param->GetType())) {
         scalar_params_.insert(param.get());
       } else {
         tensor_params_.insert(param.get());
@@ -415,7 +417,7 @@ class GraphBodyChecker : public IRVisitor {
   /// through.
   void TrackTensorAlias(const AssignStmtPtr& op) {
     auto var = AsVarLike(op->var_);
-    if (!var || As<ScalarType>(var->GetType()) != nullptr) return;
+    if (!var || As<ScalarType>(var->GetType()) || As<CommCtxType>(var->GetType())) return;
     auto aliased = AsVarLike(op->value_);
     if (aliased && tensor_root_.count(aliased.get()) != 0) {
       tensor_root_.insert(var.get());
@@ -628,7 +630,7 @@ class GraphBodyChecker : public IRVisitor {
 
   void CheckScalarArgs(const std::vector<ExprPtr>& args, const Span& span) {
     for (const auto& arg : args) {
-      if (!arg || As<ScalarType>(arg->GetType()) == nullptr) continue;
+      if (!arg || (!As<ScalarType>(arg->GetType()) && !As<CommCtxType>(arg->GetType()))) continue;
       // A TaskId is topology, not a boundary scalar — see graph_replay_invariant.h.
       if (graph_replay::IsTaskIdScalar(arg->GetType())) continue;
       if (IsLiteralScalarExpr(arg)) continue;
